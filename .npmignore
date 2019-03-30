@@ -1,3 +1,5 @@
+# git directory
+.git
 # Logs
 logs
 *.log
@@ -22,8 +24,6 @@ coverage
 
 # Compiled binary addons (http://nodejs.org/api/addons.html)
 build/Release
-
-dist
 
 # Dependency directory
 node_modules
