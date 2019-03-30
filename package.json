@@ -17,9 +17,9 @@
     "isolation"
   ],
   "scripts": {
-    "build": "tsc",
     "lint": "tslint -c tslint.json -p ./tsconfig.json",
-    "test": "mocha --require ts-node/register ./test/**/*.ts"
+    "test": "mocha --require ts-node/register ./test/**/*.ts",
+    "prepare": "tsc"
   },
   "devDependencies": {
     "@types/debug": "^4.1.2",
