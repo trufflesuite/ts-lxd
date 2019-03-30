@@ -7,9 +7,10 @@ import { HTTPError } from "got";
 import { Client, Container } from "../src/index";
 
 /*
- * NOTE: these tests require that an image with this alias exists on your
- * machine. you likely need to pull the `ubuntu:18.04` image, and create
- * the alias for it like so:
+ * NOTE: These tests require that an image with the alias 'ubuntu-18.04' exists
+ * on your machine, though they don't really care that it's _actually_ ubuntu
+ * 18.04, as long as whatever it is has bash in the usual location. You likely
+ * need to pull the `ubuntu:18.04` image, and create the alias for it like so:
  *
  * $ lxc image alias create ubuntu-18.04 6700bee14eb3
  *
