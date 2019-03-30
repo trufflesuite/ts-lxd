@@ -3,6 +3,12 @@ import { Readable, Writable, Duplex } from "stream";
 import { WebSocketDuplex } from "websocket-stream";
 
 export class Process extends EventEmitter {
+  private _stdIn: Writable;
+  private _stdOut: Readable;
+  private _stdErr: Readable;
+  private _control: Duplex;
+  private _closed: boolean;
+  private _streams: WebSocketDuplex[];
 
   /**
    * Checks if the process is closed.
@@ -10,12 +16,34 @@ export class Process extends EventEmitter {
   public get isClosed(): boolean {
     return this._closed;
   }
-  private _stdIn: Writable;
-  private _stdOut: Readable;
-  private _stdErr: Readable;
-  private _control: Duplex;
-  private _closed: boolean;
-  private _streams: WebSocketDuplex[];
+
+  /**
+   * Lets you write to the process's standard input
+   */
+  public get stdIn(): Writable {
+    return this._stdIn;
+  }
+
+  /**
+   * Lets you read from the process's standard output
+   */
+  public get stdOut(): Readable {
+    return this._stdOut;
+  }
+
+  /**
+   * Lets you read from the process's standard error
+   */
+  public get stdErr(): Readable {
+    return this._stdErr;
+  }
+
+  /**
+   * Lets you read/write from/to the process's control stream (lets you set terminal size)
+   */
+  public get control(): Readable {
+    return this._control;
+  }
 
   /**
    * Creates a new operation error.
