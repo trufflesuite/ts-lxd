@@ -1,6 +1,8 @@
 A typescript client for communicating with a local or remote instance of linux containers. The interface is object-oriented, simple and uniform. Unrestrictive with an open MIT license.
 
-This package was ported from Alan Doherty's [`node-lxd`](https://github.com/alandoherty/node-lxd) and updated to support TypeScript and modern async/await style code;
+This package was ported from Alan Doherty's [`node-lxd`](https://github.com/alandoherty/node-lxd) and updated to support TypeScript and modern async/await style code.
+
+This package forked from `node-lxd`, but it should not be considered a drop-in replacement, as we've made several breaking changes.
 
 # Installing
 
@@ -18,7 +20,7 @@ import lxd from "ts-lxd";
 const client = lxd();
 
 (async () => {
-  const container = await client.create("myContainer", "ubuntu");
+  const container = await client.createContainer("myContainer", "ubuntu");
   await container.start();
   console.log("Started " + container.name());
 })();
@@ -38,7 +40,7 @@ const app = express();
 
 app.post("/create", function(req: Request, res: Response, _next: NextFunction): void {
   try {
-    const container = await client.launch(req.query.name);
+    const container = await client.launchContainer(req.query.name);
     res.json({success: true, message: "Container launched"});
   } catch (err) {
     res.json({success: false, message: err.getMessage()});
@@ -73,8 +75,3 @@ app.listen(3000, function(err) {
   }
 });
 ```
-
-## Documentation ##
-
-The code is self-documented using [TS Doc Comments](https://typedoc.org/guides/doccomments/).
-

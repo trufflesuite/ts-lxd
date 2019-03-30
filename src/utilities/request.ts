@@ -1,8 +1,8 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
+import got, { GotBodyOptions, Response } from "got";
 import { Agent } from "https";
 import debugLib from "debug";
 import { IASyncResponseBody, IOperationMetadata, ISyncResponseBody, IErrorResponseBody } from "../model";
-import OperationError from "../OperationError";
+import { createError } from "./create-error";
 
 const debug = debugLib("ts-lxd:request");
 
@@ -18,38 +18,44 @@ export interface IRequestOptions<RequestBodyType> {
  * Performs a REST request on this client.
  * @param options
  */
-export async function request<RequestBodyType, T>(options: IRequestOptions<RequestBodyType>): Promise<T | IOperationMetadata<T>> {
+export async function request<RequestBodyType, T>(
+    options: IRequestOptions<RequestBodyType>,
+  ): Promise<T | IOperationMetadata<T>> {
+
   // parse path, strip leading slash if necessary
   const route = options.path.substring(options.path.indexOf(" ") + 1).trim().replace(/^\//, "");
-  const method = options.path.substring(0, options.path.indexOf(" ")).trim().toLowerCase();
-
-  if (typeof (options.body) === "object" && !Buffer.isBuffer(options.body)) {
-    debug("Request body: ", JSON.stringify(options.body, null, 2));
-  }
+  const method = options.path.substring(0, options.path.indexOf(" ")).trim().toUpperCase();
 
   const url = options.baseRequestUrl + "1.0" + (route.length === 0 ? "" : "/") + route;
 
-  const reqParams: AxiosRequestConfig = {
+  const reqParams: GotBodyOptions<null> = {
     method,
-    url,
     headers: {
       Host: "",
     },
   };
 
-  if (["PUT", "POST", "PATCH"].includes(method.toUpperCase())) {
-    reqParams.data = JSON.stringify(options.body);
+  if (["PUT", "POST", "PATCH"].includes(method)) {
+    reqParams.body = JSON.stringify(options.body);
   }
 
-  type ResponseType = AxiosResponse<ISyncResponseBody<T> | IASyncResponseBody<T> | IErrorResponseBody | IOperationMetadata<T>>;
+  type BodyType = ISyncResponseBody<T> | IASyncResponseBody<T> | IErrorResponseBody | IOperationMetadata<T>;
 
-  const res: ResponseType = await axios(url, reqParams);
-
-  if (res.status > 399) {
-    throw new OperationError(`Error '${res.statusText}' when fetching URL '${url}'`, res.statusText, res.status);
+  if (typeof (options.body) === "object" && !Buffer.isBuffer(options.body)) {
+    debug(`${method} ${url}: `, JSON.stringify(options.body, null, 2));
+  } else {
+    debug(`${method} ${url}`);
   }
 
-  const body = res.data;
+  let res: Response<Buffer>;
+  try {
+    res = await got(url, reqParams);
+  } catch (err) {
+    logRequestError(method, url, err);
+    throw err;
+  }
+
+  const body: BodyType = JSON.parse(res.body.toString("utf8"));
 
   // log finished request
   debug(`Response from ${url}:\n\n${JSON.stringify(body, null, 2)}`);
@@ -57,11 +63,9 @@ export async function request<RequestBodyType, T>(options: IRequestOptions<Reque
   if (isResponseBody(body)) {
     switch (body.type) {
       case "async":
-        return handleAsyncResponse(body, options);
+        return await handleAsyncResponse(body, options);
       case "sync":
-        return body.metadata;
-      case "error":
-        throw new OperationError("Error response returned.", body.error, body.error_code);
+        return await handleSyncResponse(body);
       default:
         debug(body);
         throw new Error("unknown operation type: " + (body as any).type);
@@ -71,20 +75,50 @@ export async function request<RequestBodyType, T>(options: IRequestOptions<Reque
   }
 }
 
-function isResponseBody<T>(arg: any): arg is (ISyncResponseBody<T> | IASyncResponseBody<T> | IErrorResponseBody) {
+function isResponseBody<T>(arg: any):
+  arg is (ISyncResponseBody<T> | IASyncResponseBody<T> | IErrorResponseBody) {
   return !!arg.type;
 }
 
-async function handleAsyncResponse<T, RequestBodyType>(body: IASyncResponseBody<T>, options: IRequestOptions<RequestBodyType>): Promise<IOperationMetadata<T>> {
-  // wait for operation
-  if (options.waitForOperationCompletion) {
+function logRequestError(method: string, url: string, err: any): void {
+  // otherwise we assume it's an error from got
+  const res: (Response<Buffer> | undefined) = err.response;
+
+  if (res) {
+    const body: IErrorResponseBody = JSON.parse(res.body.toString("utf8"));
+    const metadataDebugOutput = body.metadata ? " metadata: " + JSON.stringify(body.metadata) : "";
+
+    debug(`${method} ${url} || ${res.statusCode} ${res.statusMessage}${metadataDebugOutput}`);
+  } else {
+    // we only branch here if we failed before we could get a response back from the server
+    debug(`${method} ${url} || no response captured`);
+  }
+}
+
+function handleSyncResponse<T>(body: ISyncResponseBody<T>): T {
+  // when we call /1.0/containers/<name>/wait we can get back a sync response body that shows success
+  // but the metadata contains a failure. (╯°□°)╯︵ ┻━┻
+  // we handle that here.
+  const metadata: (IOperationMetadata<null> | undefined) = body.metadata as any;
+  if (metadata && metadata.status && metadata.status === "Failure") {
+    throw createError(metadata);
+  }
+
+  return body.metadata;
+}
+
+async function handleAsyncResponse<T, RequestBodyType>(
+  body: IASyncResponseBody<T>,
+  options: IRequestOptions<RequestBodyType>,
+): Promise<IOperationMetadata<T>> {
+  // wait for operation, do this by default
+  if (options.waitForOperationCompletion === undefined || options.waitForOperationCompletion) {
     const strippedOptions = Object.keys(options).reduce(
       (prev: any, key) => {
         if (key !== "path" && key !== "body") {
           prev[key] = (options as any)[key];
-        } else {
-          return prev;
         }
+        return prev;
       },
       {},
     );
@@ -94,7 +128,7 @@ async function handleAsyncResponse<T, RequestBodyType>(body: IASyncResponseBody<
       path: "GET /operations/" + body.metadata.id + "/wait",
     };
 
-    return request<never, IOperationMetadata<T>>(newOptions) as Promise<IOperationMetadata<T>>;
+    return await request<never, IOperationMetadata<T>>(newOptions) as IOperationMetadata<T>;
   } else {
     return body.metadata;
   }

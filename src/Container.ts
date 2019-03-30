@@ -1,250 +1,22 @@
-import fs, { ReadStream, WriteStream, BinaryData, Stats, WriteFileOptions } from "fs";
+import fs from "fs";
 import _path from "path";
+import debugLib from "debug";
 import { Client } from "./Client";
 import { Process } from "./Process";
-import { OperationError } from "./OperationError";
+import { AlreadyStoppedError, AlreadyStartedError } from "./errors";
 import { promisify } from "util";
-import { IContainerStateMetadata, IContainerExecRequest, IExecOperationMetadata, IOperationMetadata, MetadataStatus, IContainerMetadata } from "./model";
+import {
+  IContainerStateMetadata,
+  IContainerExecRequest,
+  IExecOperationMetadata,
+  IOperationMetadata,
+  MetadataStatus,
+  IContainerMetadata,
+} from "./model";
+
+const debug = debugLib("ts-lxd:Container");
 
 // file system
-export class ContainerFS {
-
-  /**
-   * Sets the base path.
-   */
-  public set base(base: string) {
-    this._base = base;
-  }
-
-  /**
-   * Gets the base path.
-   */
-  public get base(): string {
-    return this.base;
-  }
-
-  /**
-   * Gets the parent container.
-   */
-  public get container(): Container {
-    return this._container;
-  }
-  private _container: Container;
-
-  private _base: string;
-
-  /**
-   * Creates a new file system wrapper for a container.
-   * @param container
-   */
-  constructor(container: Container) {
-    this._container = container;
-    this._base = "";
-  }
-
-  public chmod(path: string, mode: string | number): Promise<void> {
-    return promisify(fs.chmod)(this.resolve(path), mode);
-  }
-
-  public chmodSync(path: string, mode: string | number): void {
-    return fs.chmodSync(this.resolve(path), mode);
-  }
-
-  public chown(path: string, uid: number, gid: number): Promise<void> {
-    return promisify(fs.chown)(this.resolve(path), uid, gid);
-  }
-
-  public chownSync(path: string, uid: number, gid: number): void {
-    return fs.chownSync(this.resolve(path), uid, gid);
-  }
-
-  public close(fd: number): Promise<void> {
-    return promisify(fs.close)(fd);
-  }
-
-  public closeSync(fd: number): void {
-    return fs.closeSync(fd);
-  }
-
-  public createReadStream(path: string, options?: string | {
-        flags?: string;
-        encoding?: string;
-        fd?: number;
-        mode?: number;
-        autoClose?: boolean;
-        start?: number;
-        end?: number;
-        highWaterMark?: number;
-    }): ReadStream {
-    return fs.createReadStream(this.resolve(path), options);
-  }
-
-  public createWriteStream(path: string, options?: string | {
-        flags?: string;
-        encoding?: string;
-        fd?: number;
-        mode?: number;
-        autoClose?: boolean;
-        start?: number;
-    }): WriteStream {
-    return fs.createWriteStream(this.resolve(path), options);
-  }
-
-  public mkdir(path: string, mode: string | number): Promise<void> {
-    return promisify(fs.mkdir)(this.resolve(path), mode);
-  }
-
-  public mkdirSync(path: string, mode: string | number): void {
-    return fs.mkdirSync(this.resolve(path), mode);
-  }
-
-  public open(path: string, flags: string | number, mode: string | number): Promise<number> {
-    return promisify(fs.open)(this.resolve(path), flags, mode);
-  }
-
-  public openSync(path: string, flags: string | number, mode: string | number): number {
-    return fs.openSync(this.resolve(path), flags, mode);
-  }
-
-  public read(fd: number, buffer: any, offset: number, length: number, position: number | null, callback: (err: NodeJS.ErrnoException, bytesRead: number, buffer: BinaryData) => void): void {
-    return fs.read(fd, buffer, offset, length, position, callback);
-  }
-
-  public readdir(path: string, options: { encoding: BufferEncoding | null; withFileTypes?: false } | BufferEncoding | undefined | null): Promise<string[]> {
-    return promisify(fs.readdir)(this.resolve(path), options);
-  }
-
-  public readdirSync(path: string, options?: { encoding: BufferEncoding | null; withFileTypes?: false } | BufferEncoding | null): string[] {
-    return fs.readdirSync(this.resolve(path), options);
-  }
-
-  public readFile(path: string | number, options: { encoding?: null; flag?: string; } | undefined | null): Promise<Buffer> {
-    if (typeof path === "string") {
-      return promisify(fs.readFile)(this.resolve(path), options);
-    } else {
-      return promisify(fs.readFile)(path, options);
-    }
-  }
-  public readFileSync(file: number | string, options: { encoding?: null; flag?: string; } | undefined | null): Buffer {
-    if (typeof file === "string") {
-      return fs.readFileSync(this.resolve(file), options);
-    } else {
-      return fs.readFileSync(file, options);
-    }
-  }
-
-  public readlink(path: string, options: { encoding: BufferEncoding | null; withFileTypes?: false } | BufferEncoding | undefined | null): Promise<string> {
-    return promisify(fs.readlink)(this.resolve(path), options);
-  }
-
-  public readlinkSync(path: string, options: { encoding: BufferEncoding | null; withFileTypes?: false } | BufferEncoding | undefined | null): string {
-    return fs.readlinkSync(this.resolve(path), options);
-  }
-
-  public readSync(fd: number, buffer: BinaryData, offset: number, length: number, position: number | null): number {
-    return fs.readSync(fd, buffer, offset, length, position);
-  }
-
-  public realpath(path: string, options: { encoding?: BufferEncoding | null } | BufferEncoding | undefined | null): Promise<string> {
-    return promisify(fs.realpath)(this.resolve(path), options);
-  }
-
-  public realpathSync(path: string, options: { encoding?: BufferEncoding | null } | BufferEncoding | undefined | null): string {
-    return fs.realpathSync(this.resolve(path), options);
-  }
-
-  public rename(oldPath: string, newPath: string): Promise<void> {
-    return promisify(fs.rename)(this.resolve(oldPath), this.resolve(newPath));
-  }
-
-  public renameSync(oldPath: string, newPath: string): void {
-    return fs.renameSync(this.resolve(oldPath), this.resolve(newPath));
-  }
-
-  public rmdir(path: string): Promise<void> {
-    return promisify(fs.rmdir)(this.resolve(path));
-  }
-
-  public rmdirSync(path: string): void {
-    return fs.rmdirSync(this.resolve(path));
-  }
-
-  public stat(path: string): Promise<Stats> {
-    return promisify(fs.stat)(this.resolve(path));
-  }
-
-  public statSync(path: string): Stats {
-    return fs.statSync(this.resolve(path));
-  }
-
-  public truncate(path: string, len: number | undefined | null): Promise<void> {
-    return promisify(fs.truncate)(this.resolve(path), len);
-  }
-
-  public truncateSync(path: string, len: number | undefined | null): void {
-    return fs.truncateSync(this.resolve(path), len);
-  }
-
-  public unlink(path: string): Promise<void> {
-    return promisify(fs.unlink)(this.resolve(path));
-  }
-
-  public unlinkSync(path: string): void {
-    return fs.unlinkSync(this.resolve(path));
-  }
-
-  public write(
-    fd: number,
-    buffer: BinaryData,
-    offset: number | undefined | null,
-    length: number | undefined | null,
-    position: number | undefined | null,
-    callback: (err: NodeJS.ErrnoException, written: number, buffer: BinaryData) => void,
-  ): void {
-    return fs.write(fd, buffer, offset, length, position, callback);
-  }
-
-  public writeFile(file: string | number, data: any, options: WriteFileOptions): Promise<void> {
-    if (typeof file === "string") {
-      return promisify(fs.writeFile)(this.resolve(file), data, options);
-    } else {
-      return promisify(fs.writeFile)(file, data, options);
-    }
-  }
-
-  public writeFileSync(file: string | number, data: any, options: WriteFileOptions): void {
-    if (typeof file === "string") {
-      return fs.writeFileSync(this.resolve(file), data, options);
-    } else {
-      return fs.writeFileSync(file, data, options);
-    }
-  }
-
-  public writeSync(fd: number, buffer: BinaryData, offset?: number | null, length?: number | null, position?: number | null) {
-    return fs.writeSync(fd, buffer, offset, length, position);
-  }
-
-  /**
-   * Resolves an absolute container-relative path into an absolute system path.
-   * @param path The path.
-   */
-  public resolve(path: string): string {
-    let root = "/var/lib/lxd/containers/" + this._container.name + "/rootfs";
-
-    // add extra base
-    root = _path.join(root, this._base);
-
-    // prevent sneaky attacks
-    const joinedPath = _path.join(root, path);
-
-    if (joinedPath.substr(0, root.length) !== root) {
-      return root;
-    }
-
-    return joinedPath;
-  }
-}
-
 export interface IExecOptions {
   env?: {
     [key: string]: string;
@@ -252,17 +24,11 @@ export interface IExecOptions {
   interactive?: boolean;
 }
 
-// tslint:disable-next-line: max-classes-per-file
 export class Container {
 
   private _client: Client;
   private _metadata: IContainerMetadata;
   private _stateMetadata: IContainerStateMetadata;
-  private _fs: ContainerFS | null;
-
-  public get fs() {
-    return this._fs;
-  }
 
   /**
    * Gets the metadata for this container.
@@ -316,21 +82,24 @@ export class Container {
     this._client = client;
     this._metadata = metadata;
     this._stateMetadata = state;
-
-    // file system wrapper is local only
-    this._fs = client.local ? new ContainerFS(this) : null;
   }
 
   /**
    * Sets the container name
    */
   public async setName(name: string): Promise<void> {
-    const response = await this._client.request<{ name: string }, { name: string }>({
-      path: "POST /containers/" + name,
-      body: { name },
-    }) as { name: string };
+    debug(`Changing name of container '${this.name}' to ${name}`);
+    try {
+      const response = await this._client.request<{ name: string }, { name: string }>({
+        path: "POST /containers/" + name,
+        body: { name },
+      }) as { name: string };
 
-    this._metadata.name = response.name;
+      this._metadata.name = response.name;
+    } catch (err) {
+      debug(`Error changing name of container '${this.name}' to ${name}: ${err}`);
+      throw err;
+    }
   }
 
   /**
@@ -350,7 +119,7 @@ export class Container {
    * @param protocol
    */
   public ip(dev: string, protocol?: string) {
-    // check if ip"s unavailable
+    // check if ips unavailable
     if (!this._stateMetadata.network) {
       return null;
     }
@@ -360,15 +129,13 @@ export class Container {
       return null;
     }
 
+    protocol = protocol || "inet";
+
     // get ips
     const ips = this._stateMetadata.network[dev].addresses;
 
     for (const ip of ips) {
-      if (protocol !== undefined) {
-        if (ip.family === protocol) {
-          return ip;
-        }
-      } else {
+      if (ip.family === protocol) {
         return ip;
       }
     }
@@ -388,9 +155,10 @@ export class Container {
 
     // refresh until IPv4 obtained
     const container = this;
-    let tries = 0;
+    let tries = 1;
 
     return new Promise<string>(async (accept, reject) => {
+      debug(`Getting IPv4 address of ${this.name}`);
       const retry = async () => {
         await container.refresh();
         ip = container.ip("eth0", "inet");
@@ -400,12 +168,14 @@ export class Container {
         } else {
           tries++;
           if (tries === 15) {
-            reject(new OperationError("Exceeded retries", "Failed", 400));
+            debug(`IPv4 address of ${this.name} unavailable after 15 tries.`);
+            reject(new Error("Exceeded retries when fetching address"));
           }
+          debug(`IPv4 address of ${this.name}, retrying.`);
           setTimeout(retry, 1000);
         }
       };
-      retry();
+      await retry();
     });
   }
 
@@ -420,26 +190,29 @@ export class Container {
       return ip.address;
     }
 
-    // refresh until IPv4 obtained
+    // refresh until IPv6 obtained
     const container = this;
     let tries = 0;
 
     return new Promise<string>(async (accept, reject) => {
+      debug(`Getting IPv6 address of ${this.name}`);
       const retry = async () => {
         await container.refresh();
-        ip = container.ip("eth0", "inet");
+        ip = container.ip("eth0", "inet6");
 
         if (ip) {
           return accept(ip.address);
         } else {
           tries++;
           if (tries === 15) {
-            reject(new OperationError("Exceeded retries", "Failed", 400));
+            debug(`IPv6 address of ${this.name} unavailable after 15 tries.`);
+            reject(new Error("Exceeded retries when fetching address"));
           }
+          debug(`IPv6 address of ${this.name}, retrying.`);
           setTimeout(retry, 1000);
         }
       };
-      retry();
+      await retry();
     });
   }
 
@@ -447,20 +220,31 @@ export class Container {
    * Refreshes the container information.
    */
   public async refresh() {
-    const metadata = await this._client.request<never, IContainerMetadata>({
-      path: "GET /containers/" + this._metadata.name,
-    }) as IContainerMetadata;
+    try {
+      debug(`Refreshing metadata for ${this.name}`);
+      const metadata = await this._client.request<never, IContainerMetadata>({
+        path: "GET /containers/" + this._metadata.name,
+      }) as IContainerMetadata;
 
-    this._metadata = metadata;
+      this._metadata = metadata;
+    } catch (err) {
+      debug(`Error refreshing metadata for ${this.name}: ${err}`);
+      throw err;
+    }
 
-          // we now have to a seperate query for state information
-          // which we use heavily
+    try {
+      // we now have to a seperate query for state information
+      // which we use heavily
+      debug(`Refreshing state metadata for ${this.name}`);
+      const stateMetadata = await this._client.request<never, IContainerStateMetadata>({
+        path: "GET /containers/" + this._metadata.name + "/state",
+      }) as IContainerStateMetadata;
 
-    const stateMetadata = await this._client.request<never, IContainerStateMetadata>({
-      path: "GET /containers/" + this._metadata.name + "/state",
-    }) as IContainerStateMetadata;
-
-    this._stateMetadata = stateMetadata;
+      this._stateMetadata = stateMetadata;
+    } catch (err) {
+      debug(`Error refreshing state metadata for ${this.name}: ${err}`);
+      throw err;
+    }
   }
 
   /**
@@ -468,11 +252,21 @@ export class Container {
    * @param command The command with arguments.
    * @param env The environment data, optional.
    */
-  public async run(command: string[], env?: { [key: string]: string }): Promise<{ stdOut: string, stdErr: string }> {
+  public async run(
+    command: string[],
+    env?: { [key: string]: string },
+  ): Promise<{ stdOut: string, stdErr: string }> {
 
-    const proc = await this.exec(command, env ? { env } : {});
+    debug("Running command '", command.join(" "), "' in container", this.name);
+    let proc: Process;
+    try {
+      proc = await this.exec(command, env ? { env } : {});
+    } catch (err) {
+      debug("Error when running command '", command.join(" "), "' in container", `${this.name}:`, err);
+      throw err;
+    }
 
-    return new Promise((accept) => {
+    return new Promise((accept, reject) => {
 
       // handle stdout/stderr
       let stdOut = "";
@@ -495,6 +289,12 @@ export class Container {
           });
         });
       });
+
+      proc.on("error", (err: any) => {
+        debug(`Error (from Process error event) when running command '${command.join(" ")}' ` +
+        `in container ${this.name}:`, err);
+        reject(err);
+      });
     });
   }
 
@@ -514,46 +314,95 @@ export class Container {
       "wait-for-websocket": true,
     };
 
-    const operation: IOperationMetadata<IExecOperationMetadata> = await this._client.request<IContainerExecRequest, IExecOperationMetadata>({
-      path: "POST /containers/" + this.name + "/exec",
-      body,
-    }) as IOperationMetadata<IExecOperationMetadata>;
+    try {
+      debug("Executing command '", command.join(" "), "' in container", this.name);
+      const operation: IOperationMetadata<IExecOperationMetadata> =
+        await this._client.request<IContainerExecRequest, IExecOperationMetadata>({
+          path: "POST /containers/" + this.name + "/exec",
+          body,
+          waitForOperationCompletion: false,
+        }) as IOperationMetadata<IExecOperationMetadata>;
 
-    return this._client.getProcess(operation, interactive);
+      return await this._client.getProcess(operation, interactive);
+    } catch (err) {
+      debug("Error when executing command '", command.join(" "), "' in container", `${this.name}:`, err);
+      throw err;
+    }
   }
 
   public async stop(timeout: number = 30, force: boolean = false, stateful: boolean = false) {
-    return this._setState("stop", timeout, force, stateful);
+    try {
+      debug(`Stopping container ${this.name}`);
+      return await this._setState("stop", timeout, force, stateful);
+    } catch (err) {
+      // ignore exception if the container is already stopped
+      if (!(err instanceof AlreadyStoppedError)) {
+        debug(`Error when stopping container ${this.name}:`, err);
+        throw err;
+      }
+      debug(`Warning: container ${this.name} was already stopped. API error silenced.`);
+    }
   }
 
   public async start(timeout: number = 30, force: boolean = false, stateful: boolean = false) {
-    return this._setState("stop", timeout, force, stateful);
+    try {
+      debug(`Starting container ${this.name}`);
+      return await this._setState("start", timeout, force, stateful);
+    } catch (err) {
+      // ignore exception if the container is already started
+      if (!(err instanceof AlreadyStartedError)) {
+        debug(`Error when starting container ${this.name}:`, err);
+        throw err;
+      }
+      debug(`Warning: container ${this.name} was already started. API error silenced.`);
+    }
   }
 
   public async restart(timeout: number = 30, force: boolean = false) {
-    return this._setState("restart", timeout, force);
+    try {
+      debug(`Restarting container ${this.name}`);
+      return await this._setState("restart", timeout, force);
+    } catch (err) {
+      debug(`Error when restarting container ${this.name}:`, err);
+      throw err;
+    }
   }
 
   public async freeze(timeout: number = 30, force: boolean = false) {
-    return this._setState("freeze", timeout, force);
+    try {
+      debug(`Freezing container ${this.name}`);
+      return await this._setState("freeze", timeout, force);
+    } catch (err) {
+      debug(`Error when freezing container ${this.name}:`, err);
+      throw err;
+    }
   }
 
   public async unfreeze(timeout: number = 30, force: boolean = false) {
-    return this._setState("unfreeze", timeout, force);
+    try {
+      debug(`Unfreezing container ${this.name}`);
+      return await this._setState("unfreeze", timeout, force);
+    } catch (err) {
+      debug(`Error when unfreezing container ${this.name}:`, err);
+      throw err;
+    }
   }
 
   /**
    * Delete the container.
    */
   public async delete(): Promise<void> {
+    await this.stop();
 
-    if (this._stateMetadata.status_code === 103) {
-      await this.stop();
+    try {
+      debug(`Deleting container ${this.name}`);
+      return await this._client.request<never, void>({
+        path: "DELETE /containers/" + this.name,
+      }) as void;
+    } catch (err) {
+      debug(`Error when deleting container ${this.name}:`, err);
+      throw err;
     }
-
-    return await this._client.request<never, void>({
-      path: "DELETE /containers/" + this.name,
-    }) as void;
   }
 
   /**
@@ -564,10 +413,16 @@ export class Container {
    */
   public async upload(remotePath: string, data: string | Buffer): Promise<void> {
     // create operation
-    await this._client.request({
-      path: "POST /containers/" + this.name + "/files?path=" + remotePath,
-      body: Buffer.isBuffer(data) ? data : Buffer.from(data, "utf8"),
-    });
+    try {
+      debug(`Uploading file to container ${this.name} at remote path ${remotePath}`);
+      await this._client.request({
+        path: "POST /containers/" + this.name + "/files?path=" + remotePath,
+        body: Buffer.isBuffer(data) ? data : Buffer.from(data, "utf8"),
+      });
+    } catch (err) {
+      debug(`Error when uploading file to container ${this.name} at remote path ${remotePath}:`, err);
+      throw err;
+    }
   }
 
   // TODO: fix this
@@ -590,8 +445,21 @@ export class Container {
    * @param remotePath
    */
   public async uploadFile(localPath: string, remotePath: string): Promise<void> {
-    const buff = await promisify(fs.readFile)(localPath);
-    await this.upload(remotePath, buff);
+    try {
+      debug(`Uploading file at ${localPath} to container ${this.name} at remote path ${remotePath}`);
+
+      const buff = await promisify(fs.readFile)(localPath);
+      await this.upload(remotePath, buff);
+
+      await this._client.request({
+        path: "POST /containers/" + this.name + "/files?path=" + remotePath,
+        body: buff,
+      });
+    } catch (err) {
+      debug(`Error when uploading file at ${localPath} to container ${this.name} ` +
+        `at remote path ${remotePath}:`, err);
+      throw err;
+    }
   }
 
   // TODO: fix this
@@ -605,7 +473,12 @@ export class Container {
     await promisify(fs.writeFile)(localPath, data);
   }*/
 
-  private async _setState(action: "start" | "stop" | "restart" | "freeze" | "unfreeze", timeout: number = 30, force: boolean = false, stateful?: boolean): Promise<void> {
+  private async _setState(
+    action: "start" | "stop" | "restart" | "freeze" | "unfreeze",
+    timeout: number = 30,
+    force: boolean = false,
+    stateful?: boolean,
+  ): Promise<void> {
 
     await this._client.request({
       path: "PUT /containers/" + this._metadata.name + "/state",
@@ -620,5 +493,4 @@ export class Container {
   }
 }
 
-// export
-module.exports = Container;
+export default Container;

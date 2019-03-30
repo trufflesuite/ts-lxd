@@ -3,6 +3,8 @@ export { Container } from "./Container";
 export { Profile } from "./Profile";
 export { Process } from "./Process";
 
+export * from "./errors";
+
 // TODO: images
 // TODO: networks
 // TODO: cluster

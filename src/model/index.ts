@@ -32,8 +32,11 @@ export type MetadataStatusCode =
   400 |
   401;
 
-// TODO
-// export interface IMetadataResourcesMap { }
+// TODO - this type is incomplete
+// TODO - break this into multiple types once we know which fields are populated and when
+export interface IMetadataResourcesMap {
+  containers?: string[];
+}
 
 export interface IBaseResponseBody<Metadata> {
   type: "sync" | "async";
@@ -55,8 +58,9 @@ export interface IErrorResponseBody {
   type: "error";
   error: "Failure";
   error_code: MetadataStatusCode;
-  // this type technically does have a `metadata` object, but we never actually use it, so it's commented out
-  // metadata: any
+  // the type of this field isn't documented, so we expose it as type `any` for
+  // debugging purposes
+  metadata: any;
 }
 
 export interface IOperationMetadata<OperationMetadataType> {
@@ -94,7 +98,7 @@ export interface IOperationMetadata<OperationMetadataType> {
   /**
    * Dictionary of resource types (container, snapshots, images) and affected resources
    */
-  // resources: IMetadataResourcesMap;
+  resources?: IMetadataResourcesMap;
 
   /**
    * Metadata specific to the operation in question.
@@ -308,7 +312,8 @@ export interface IContainerStateRequest {
   force: boolean;
 
   /**
-   * Whether to store or restore runtime state before stopping or starting (only valid for stop and start, defaults to false)
+   * Whether to store or restore runtime state before stopping or starting
+   * (only valid for stop and start, defaults to false)
    */
   stateful: boolean;
 }

@@ -1,16 +1,26 @@
 import debugOutput from "debug";
 import { parse as parseUrl } from "url";
 import { Agent } from "https";
+import { existsSync } from "fs";
 import createWebSocketStream, { WebSocketDuplex } from "websocket-stream";
 
 import { Container } from "./Container";
-import { OperationError } from "./OperationError";
 import { Process } from "./Process";
 import { Profile } from "./Profile";
 
-import { IContainersMetadata, IOperationMetadata, IExecOperationMetadata, IContainerMetadata, IContainerStateMetadata, IProfilesMetadata, IProfileMetadata, IAuthorizeCertificateRequest, ITrustedInfoMetadata } from "./model";
+import {
+  IContainersMetadata,
+  IOperationMetadata,
+  IExecOperationMetadata,
+  IContainerMetadata,
+  IContainerStateMetadata,
+  IProfilesMetadata,
+  IProfileMetadata,
+  IAuthorizeCertificateRequest,
+  ITrustedInfoMetadata,
+} from "./model";
 
-import { request } from "./utilities/request";
+import { IRequestOptions as _IRequestOptions, request } from "./utilities/request";
 
 const debug = debugOutput("lxd:Client");
 
@@ -41,8 +51,24 @@ export class Client {
   /**
    * Gets if the client is connected to a local unix socket.
    */
-  get local(): boolean {
+  public get local(): boolean {
     return this._local;
+  }
+
+  private get _unixSocketLocation(): string {
+    const defaultLocation = "/var/lib/lxd/unix.socket";
+    const snapLocation = "/var/snap/lxd/common/lxd/unix.socket";
+
+    if (existsSync(defaultLocation)) {
+      return defaultLocation;
+    }
+
+    if (existsSync(snapLocation)) {
+      return snapLocation;
+    }
+
+    throw new Error("Can't access LXD socket. Please be sure that LXD is installed properly " +
+      "and that your user has the appropriate permissions.");
   }
 
   /**
@@ -70,8 +96,8 @@ export class Client {
       this._path += port ? ":" + port + "/" : "/";
     } else {
       this._local = true;
-      this._path = "http://unix:/var/lib/lxd/unix.socket:/";
-      this._wsPath = "ws+unix:///var/lib/lxd/unix.socket:/";
+      this._path = `http://unix:${this._unixSocketLocation}:/`;
+      this._wsPath = `ws+unix://${this._unixSocketLocation}:/`;
     }
 
     if (authenticate && authenticate.cert && authenticate.key) {
@@ -81,19 +107,6 @@ export class Client {
         ca: authenticate.ca,
       });
     }
-
-    (async () => {
-      this._info = await this.getInfo();
-
-      if (authenticate && authenticate.cert) {
-        await this.authorizeCertificate(authenticate.password);
-      }
-      // debug info
-      debug("LXC " + this._info.environment.server_version + " on " +
-        this._info.environment.kernel + " using " +
-        this._info.environment.storage + " v" +
-        this._info.environment.storage_version);
-    })();
   }
 
   /**
@@ -101,7 +114,10 @@ export class Client {
    */
   public async getAllContainers(): Promise<Container[]> {
     const client = this;
-    const containerNames: IContainersMetadata = await this.request<never, IContainersMetadata>({ path: "GET /containers" }) as IContainersMetadata;
+    const containerNames: IContainersMetadata =
+      await this.request<never, IContainersMetadata>({
+        path: "GET /containers",
+      }) as IContainersMetadata;
 
     return Promise.all(containerNames.map((containerName) => {
       return client.getContainer(containerName.split("/").slice(-1)[0]);
@@ -113,8 +129,13 @@ export class Client {
    * @param name
    */
   public async getContainer(name: string): Promise<Container> {
-    const metadata = await this.request<never, IContainerMetadata>({ path: "GET /containers/" + name }) as IContainerMetadata;
-    const state = await this.request<never, IContainerStateMetadata>({ path: "GET /containers/" + name + "/state" }) as IContainerStateMetadata;
+    const metadata = await this.request<never, IContainerMetadata>({
+      path: "GET /containers/" + name,
+    }) as IContainerMetadata;
+
+    const state = await this.request<never, IContainerStateMetadata>({
+      path: "GET /containers/" + name + "/state",
+    }) as IContainerStateMetadata;
 
     return new Container(this, metadata, state);
   }
@@ -134,10 +155,13 @@ export class Client {
           throw new Error("No streams to connect to!");
         }
 
-        if (interactive) {
-          const wsSecret = fds[(i === controlFd) ? "control" : i.toString()];
-          const baseWsUrl = `${this._wsPath}1.0/operations/${operation.id}/websocket${wsSecret ? `?secret=${wsSecret}` : ""}`;
+        const wsSecret = fds[(i === controlFd) ? "control" : i.toString()];
+        const urlSecret = wsSecret ? `?secret=${wsSecret}` : "";
+        const baseWsUrl = `${this._wsPath}1.0/operations/${operation.id}/websocket${urlSecret}`;
 
+        if (this._agent) {
+          streams.push(createWebSocketStream(baseWsUrl));
+        } else {
           streams.push(createWebSocketStream(baseWsUrl, {
             agent: this._agent,
           }));
@@ -158,7 +182,10 @@ export class Client {
    */
   public async getAllProfiles(): Promise<Profile[]> {
     const client = this;
-    const profiles = await this.request<never, IProfilesMetadata>({ path: "GET /profiles" }) as IProfilesMetadata;
+    const profiles = await this.request<never, IProfilesMetadata>({
+      path: "GET /profiles",
+    }) as IProfilesMetadata;
+
     return Promise.all(profiles.map((profileName) => {
       return client.profile(profileName.split("/").slice(-1)[0]);
     }));
@@ -169,7 +196,9 @@ export class Client {
    * @param name
    */
   public async profile(name: string): Promise<Profile> {
-    const metadata = await this.request<never, IProfileMetadata>({ path: "GET /profiles/" + name }) as IProfileMetadata;
+    const metadata = await this.request<never, IProfileMetadata>({
+      path: "GET /profiles/" + name,
+    }) as IProfileMetadata;
     return new Profile(this, metadata);
   }
 
@@ -178,7 +207,9 @@ export class Client {
    * @param password
    */
   public async authorizeCertificate(password: string): Promise<void> {
-    await this.request<IAuthorizeCertificateRequest, never>({ path: "POST /certificates", body: { type: "client", password } });
+    await this.request<IAuthorizeCertificateRequest, never>({
+      path: "POST /certificates", body: { type: "client", password },
+    });
   }
 
   /**
@@ -188,8 +219,13 @@ export class Client {
    * @param config
    * @param profile
    */
-  public async launch(name: string, image: string, config: any, profile?: string): Promise<Container> {
-    const container: Container = await this.create(name, image, config, profile);
+  public async launchContainer(
+    name: string,
+    image: string,
+    config: any,
+    profile?: string,
+  ): Promise<Container> {
+    const container: Container = await this.createContainer(name, image, config, profile);
     await container.start();
     return container;
   }
@@ -201,7 +237,12 @@ export class Client {
    * @param config
    * @param profile
    */
-  public async create(name: string, image: string, config?: any, profile?: string): Promise<Container> {
+  public async createContainer(
+    name: string,
+    image: string,
+    config?: any,
+    profile?: string,
+  ): Promise<Container> {
     if (config === undefined) {
       config = {};
     }
@@ -212,12 +253,12 @@ export class Client {
 
     // check name length
     if (name.length === 0) {
-      throw new OperationError("Container name too small", "Failed", 400);
+      throw new Error("Container name too small");
     } else if (name.length > 64) {
-        throw new OperationError("Container name too long", "Failed", 400);
+      throw new Error("Container name too long");
     }
 
-    await this.request({
+    const reqOpts = {
       path: "POST /containers",
       body: {
         name,
@@ -230,7 +271,8 @@ export class Client {
           alias: image,
         },
       },
-    });
+    };
+    await this.request(reqOpts);
 
     return await this.getContainer(name);
   }
@@ -239,16 +281,30 @@ export class Client {
    * Gets information about the server.
    */
   public async getInfo(): Promise<ITrustedInfoMetadata> {
+    if (this._info) {
+      return this._info;
+    }
+
     const info: ITrustedInfoMetadata = await this.request({ path: "GET /" }) as ITrustedInfoMetadata;
+    this._info = info;
+    debug("LXC " + this._info.environment.server_version + " on " +
+      this._info.environment.kernel + " using " +
+      this._info.environment.storage + " v" +
+      this._info.environment.storage_version);
     return info;
   }
 
   public async request<ReqT, ResT>(opts: IRequestOptions<ReqT>): Promise<ResT | IOperationMetadata<ResT>> {
-    return request<ReqT, ResT>({
+    const reqOpts: _IRequestOptions<ReqT> = {
       ...opts,
       baseRequestUrl: this._path,
-      agent: this._agent,
-    });
+    };
+
+    if (this._agent) {
+      reqOpts.agent = this._agent;
+    }
+
+    return await request<ReqT, ResT>(reqOpts);
   }
 }
 

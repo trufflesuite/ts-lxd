@@ -53,7 +53,9 @@ export class Profile {
    * Refreshes the profile information.
    */
   public async refresh(): Promise<IProfileMetadata> {
-    const metadata = await this._client.request<never, IProfileMetadata>({ path: "GET /profiles/" + this._metadata.name }) as IProfileMetadata;
+    const metadata = await this._client.request<never, IProfileMetadata>({
+      path: "GET /profiles/" + this._metadata.name,
+    }) as IProfileMetadata;
     this._metadata = metadata;
     return metadata;
   }

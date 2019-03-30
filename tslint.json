@@ -11,9 +11,12 @@
       "allow-pascal-case"
     ],
     "semicolon": [true, "always"],
-    "object-literal-sort-keys": [false],
-    "ordered-imports": [false],
-    "max-line-length": [true, 240]
+    "object-literal-sort-keys": false,
+    "ordered-imports": false,
+    "max-line-length": [true, 110],
+    "max-classes-per-file": false,
+    "only-arrow-functions": false,
+    "no-floating-promises": true
   },
   "rulesDirectory": []
 }
