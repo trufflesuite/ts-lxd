@@ -168,7 +168,7 @@ export class Client {
         }
       }
 
-      return new Process(streams);
+      return new Process(operation, this, streams);
     } catch (err) {
       for (const stream of streams) {
         stream.end();

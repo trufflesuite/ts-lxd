@@ -1,3 +1,5 @@
+import { SignalNumber } from "./signals";
+
 export type MetadataStatus =
  "Operation Created" |
   "Started" |
@@ -316,4 +318,9 @@ export interface IContainerStateRequest {
    * (only valid for stop and start, defaults to false)
    */
   stateful: boolean;
+}
+
+export interface ISignalRequest {
+  command: "signal";
+  signal: SignalNumber;
 }

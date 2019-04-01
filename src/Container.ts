@@ -255,7 +255,7 @@ export class Container {
   public async run(
     command: string[],
     env?: { [key: string]: string },
-  ): Promise<{ stdOut: string, stdErr: string }> {
+  ): Promise<{ stdOut: string, stdErr: string, exitCode: number | undefined }> {
 
     debug("Running command '", command.join(" "), "' in container", this.name);
     let proc: Process;
@@ -282,10 +282,11 @@ export class Container {
 
       // handle close
       proc.on("close", () => {
-        process.nextTick(() => {
+        process.nextTick(async () => {
           accept({
             stdOut,
             stdErr,
+            exitCode: proc.exitCode,
           });
         });
       });

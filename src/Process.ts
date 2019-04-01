@@ -1,6 +1,12 @@
+import debugOutput from "debug";
 import { EventEmitter } from "events";
 import { Readable, Writable, Duplex } from "stream";
 import { WebSocketDuplex } from "websocket-stream";
+import { IExecOperationMetadata, IOperationMetadata, ISignalRequest } from "./model/index";
+import { SignalNumber, SIGHUP } from "./model/signals";
+import { Client, IRequestOptions } from "./Client";
+
+const debug = debugOutput("ts-lxd:Process");
 
 export class Process extends EventEmitter {
   private _stdIn: Writable;
@@ -9,6 +15,8 @@ export class Process extends EventEmitter {
   private _control: Duplex;
   private _closed: boolean;
   private _streams: WebSocketDuplex[];
+  private _operation: IOperationMetadata<IExecOperationMetadata>;
+  private _client: Client;
 
   /**
    * Checks if the process is closed.
@@ -45,19 +53,46 @@ export class Process extends EventEmitter {
     return this._control;
   }
 
+  public get operation(): IOperationMetadata<IExecOperationMetadata> {
+    return this._operation;
+  }
+
+  /**
+   * Returns true if the process is still running, otherwise false.
+   * Note that you might need to call `refreshOperation` for this data to be updated.
+   */
+  public get isRunning(): boolean {
+    // if we don't have a return code, let's assume we're still running
+    return this._operation.metadata.return === undefined || this._operation.metadata.return === null;
+  }
+
+  /**
+   * Gets the process's exit code. Returns null if the process is still running.
+   * Note that you might need to call `refreshOperation` for this data to be updated.
+   */
+  public get exitCode(): number | undefined {
+    return this._operation.metadata.return;
+  }
+
   /**
    * Creates a new operation error.
    * @param container
    * @param streams
    */
-  constructor(streams: WebSocketDuplex[]) {
+  constructor(
+    operation: IOperationMetadata<IExecOperationMetadata>,
+    client: Client,
+    streams: WebSocketDuplex[],
+  ) {
     super();
     this._closed = false;
 
+    this._client = client;
+    this._operation = operation;
     this._streams = streams;
 
-    // web sockets, if we have two it"s interactive
-    // otherwise it"s pty
+    // web sockets, if we have two it's interactive
+    // otherwise it's pty
     if (streams.length === 2) {
       this._stdIn = streams[0];
       this._stdOut = streams[0];
@@ -73,32 +108,42 @@ export class Process extends EventEmitter {
     // setup events
     const process = this;
 
-    // close
-    this._control.on("close", () => {
-      process.close();
+    this._control.on("close", async () => {
+      process._close();
     });
 
     // messages
     this._stdOut.on("data", (data) => {
-      process.emit("data", false, data.toString("utf8").trim());
+      data = data.toString("utf8").trim();
+      debug(`stdout data: ${data}`);
+      process.emit("data", false, data);
+    });
+
+    this._control.on("data", (data) => {
+      data = data.toString("utf8").trim();
+      try {
+        // pretty print for debug
+        data = JSON.stringify(JSON.parse(data), null, 2);
+        // tslint:disable-next-line: no-empty
+      } catch { }
+      debug(`control data: ${data}`);
     });
 
     if (this._stdErr !== null) {
       this._stdErr.on("data", (data) => {
+        data = data.toString("utf8").trim();
+        debug(`stderr data: ${data}`);
         process.emit("data", true, data.toString("utf8").trim());
       });
     }
   }
 
   /**
-   * Closes the process.
+   * Closes the process. Sends SIGHUP.
    */
   public close(): void {
-    for (const stream of this._streams) {
-      stream.end();
-    }
-    this.emit("close");
-    this._closed = true;
+    this.signal(SIGHUP);
+    this._close();
   }
 
   /**
@@ -116,7 +161,7 @@ export class Process extends EventEmitter {
   }
 
   /**
-   * Resize"s the output window.
+   * Resize's the output window.
    * @param width
    * @param height
    */
@@ -127,6 +172,41 @@ export class Process extends EventEmitter {
       height,
     }));
   }
+
+  /**
+   * Sends a signal to the process
+   *
+   * @param signal The numeric signal to be sent to the process
+   */
+  public signal(signal: SignalNumber) {
+    const signalReq: ISignalRequest = {
+      command: "signal",
+      signal,
+    };
+
+    this._control.write(JSON.stringify(signalReq));
+  }
+
+  /**
+   * Queries for updates to the operation metadata
+   */
+  public async refreshOperation(): Promise<void> {
+    const req: IRequestOptions<never> = {
+      path: `GET /1.0/operations/${this._operation.id}`,
+      waitForOperationCompletion: false,
+    };
+
+    this._operation = await this._client.request(req) as IOperationMetadata<IExecOperationMetadata>;
+  }
+
+  private _close(): void {
+    for (const stream of this._streams) {
+      stream.end();
+    }
+    this.emit("close");
+    this._closed = true;
+  }
+
 }
 
 export default Process;

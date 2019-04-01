@@ -132,7 +132,7 @@ describe("Client", () => {
     });
   });
 
-  describe("run", () => {
+  describe.only("run", () => {
     const fileName = `/testfile-${shortid().replace(/-|_/g, "")}`;
     const fileData = `${shortid()}${shortid()}`;
     const errorData = `${shortid()}${shortid()}`;
@@ -154,6 +154,7 @@ describe("Client", () => {
 
       assert.strictEqual(results.stdOut.trim(), "");
       assert.strictEqual(results.stdErr.trim(), "");
+      assert.strictEqual(results.exitCode, 0);
     });
 
     it("should read back a file in the container", async function() {
@@ -165,17 +166,38 @@ describe("Client", () => {
 
       assert.strictEqual(results.stdOut.trim(), fileData);
       assert.strictEqual(results.stdErr.trim(), "");
+      assert.strictEqual(results.exitCode, 0);
     });
 
     it("should get error data via stderr", async function() {
       const results = await container.run([
         "/bin/bash",
         "-c",
-        `>&2 echo '${errorData}'`,
+        `>&2 echo '${errorData}' && exit 1`,
       ]);
 
       assert.strictEqual(results.stdOut.trim(), "");
       assert.strictEqual(results.stdErr.trim(), errorData);
+      assert.strictEqual(results.exitCode, 1);
+    });
+
+    it.only("should create a file in the container (operations bug repro)", async function() {
+      const proc = await container.exec([
+        "/bin/bash",
+        "-c",
+        `echo '${fileData}' > ${fileName}`,
+      ], { interactive: false });
+
+      const exitCodePromise = new Promise((accept) => {
+        proc.on("close", async () => {
+          await proc.refreshOperation();
+          accept(proc.exitCode);
+        });
+      });
+
+      const exitCode = await exitCodePromise;
+
+      assert.strictEqual(exitCode, 0);
     });
 
     after ("remove created container", async function() {
