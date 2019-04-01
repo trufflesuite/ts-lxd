@@ -132,7 +132,7 @@ describe("Client", () => {
     });
   });
 
-  describe.only("run", () => {
+  describe("run", () => {
     const fileName = `/testfile-${shortid().replace(/-|_/g, "")}`;
     const fileData = `${shortid()}${shortid()}`;
     const errorData = `${shortid()}${shortid()}`;
@@ -179,25 +179,6 @@ describe("Client", () => {
       assert.strictEqual(results.stdOut.trim(), "");
       assert.strictEqual(results.stdErr.trim(), errorData);
       assert.strictEqual(results.exitCode, 1);
-    });
-
-    it.only("should create a file in the container (operations bug repro)", async function() {
-      const proc = await container.exec([
-        "/bin/bash",
-        "-c",
-        `echo '${fileData}' > ${fileName}`,
-      ], { interactive: false });
-
-      const exitCodePromise = new Promise((accept) => {
-        proc.on("close", async () => {
-          await proc.refreshOperation();
-          accept(proc.exitCode);
-        });
-      });
-
-      const exitCode = await exitCodePromise;
-
-      assert.strictEqual(exitCode, 0);
     });
 
     after ("remove created container", async function() {

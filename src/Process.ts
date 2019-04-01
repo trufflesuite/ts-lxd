@@ -109,7 +109,8 @@ export class Process extends EventEmitter {
     const process = this;
 
     this._control.on("close", async () => {
-      process._close();
+      await this.refreshOperation();
+      this._close(this.exitCode);
     });
 
     // messages
@@ -140,10 +141,18 @@ export class Process extends EventEmitter {
 
   /**
    * Closes the process. Sends SIGHUP.
+   *
+   * @param signal Optional signal to send on termination
    */
-  public close(): void {
-    this.signal(SIGHUP);
-    this._close();
+  public close(signal: SignalNumber = SIGHUP): void {
+    if (!this.isClosed) {
+      if (signal !== undefined && signal !== null) {
+        this.signal(signal);
+        this._close(128 + signal);
+      } else {
+        this._close();
+      }
+    }
   }
 
   /**
@@ -192,21 +201,25 @@ export class Process extends EventEmitter {
    */
   public async refreshOperation(): Promise<void> {
     const req: IRequestOptions<never> = {
-      path: `GET /1.0/operations/${this._operation.id}`,
+      path: `GET /operations/${this._operation.id}`,
       waitForOperationCompletion: false,
     };
 
     this._operation = await this._client.request(req) as IOperationMetadata<IExecOperationMetadata>;
   }
 
-  private _close(): void {
+  private _close(codeOrSignal?: number): void {
     for (const stream of this._streams) {
       stream.end();
     }
-    this.emit("close");
+    if (codeOrSignal !== null && codeOrSignal !== undefined && codeOrSignal >= 128) {
+      this.emit("close", null, codeOrSignal - 128);
+    } else {
+      this.emit("close", codeOrSignal);
+    }
+
     this._closed = true;
   }
-
 }
 
 export default Process;
