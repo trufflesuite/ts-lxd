@@ -1,7 +1,7 @@
 import debugOutput from "debug";
 import { parse as parseUrl } from "url";
 import { Agent } from "https";
-import { existsSync } from "fs";
+import { existsSync, lstatSync } from "fs";
 import createWebSocketStream, { WebSocketDuplex } from "websocket-stream";
 
 import { Container } from "./Container";
@@ -60,11 +60,18 @@ export class Client {
     const snapLocation = "/var/snap/lxd/common/lxd/unix.socket";
 
     if (existsSync(defaultLocation)) {
-      return defaultLocation;
+      if (lstatSync(defaultLocation).isSocket()) {
+        return defaultLocation;
+      } else {
+        throw new Error(`File exists at ${defaultLocation} however it is not a unix socket.`);
+      }
     }
 
     if (existsSync(snapLocation)) {
-      return snapLocation;
+      if (lstatSync(snapLocation).isSocket()) {
+        return snapLocation;
+        throw new Error(`File exists at ${snapLocation} however it is not a unix socket.`);
+      }
     }
 
     throw new Error("Can't access LXD socket. Please be sure that LXD is installed properly " +
