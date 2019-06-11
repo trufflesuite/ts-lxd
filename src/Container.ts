@@ -147,7 +147,7 @@ export class Container {
    * Gets the IPv4 address of this container.
    * @returns
    */
-  public async ipv4(): Promise<string> {
+  public async ipv4(numRetries: number = 15, msBetweenRetries: number = 1000): Promise<string> {
     let ip = this.ip("eth0", "inet");
     if (ip) {
       return ip.address;
@@ -167,12 +167,12 @@ export class Container {
           return accept(ip.address);
         } else {
           tries++;
-          if (tries === 15) {
+          if (tries >= numRetries) {
             debug(`IPv4 address of ${this.name} unavailable after 15 tries.`);
             reject(new Error("Exceeded retries when fetching address"));
           }
           debug(`IPv4 address of ${this.name}, retrying.`);
-          setTimeout(retry, 1000);
+          setTimeout(retry, msBetweenRetries);
         }
       };
       await retry();
@@ -184,7 +184,7 @@ export class Container {
    * @param {function?} callback
    * @returns {string|undefined}
    */
-  public async ipv6(): Promise<string> {
+  public async ipv6(numRetries: number = 15, msBetweenRetries: number = 1000): Promise<string> {
     let ip = this.ip("eth0", "inet6");
     if (ip) {
       return ip.address;
@@ -204,12 +204,12 @@ export class Container {
           return accept(ip.address);
         } else {
           tries++;
-          if (tries === 15) {
+          if (tries >= numRetries) {
             debug(`IPv6 address of ${this.name} unavailable after 15 tries.`);
             reject(new Error("Exceeded retries when fetching address"));
           }
           debug(`IPv6 address of ${this.name}, retrying.`);
-          setTimeout(retry, 1000);
+          setTimeout(retry, msBetweenRetries);
         }
       };
       await retry();
