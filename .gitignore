@@ -44,4 +44,3 @@ node_modules
 test/*.zip
 
 package-lock.json
-yarn.lock

@@ -19,7 +19,8 @@
   "scripts": {
     "lint": "tslint -c tslint.json -p ./tsconfig.json",
     "test": "mocha --require ts-node/register ./test/**/*.ts",
-    "prepare": "tsc"
+    "build": "tsc",
+    "prepare": "yarn build"
   },
   "devDependencies": {
     "@types/debug": "^4.1.2",
