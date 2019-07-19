@@ -418,7 +418,7 @@ export class Container {
       debug(`Uploading file to container ${this.name} at remote path ${remotePath}`);
       await this._client.request({
         path: "POST /containers/" + this.name + "/files?path=" + remotePath,
-        body: Buffer.isBuffer(data) ? data : Buffer.from(data, "utf8"),
+        body: Buffer.isBuffer(data) ? data.toString("utf8") : data,
       });
     } catch (err) {
       debug(`Error when uploading file to container ${this.name} at remote path ${remotePath}:`, err);
@@ -451,11 +451,6 @@ export class Container {
 
       const buff = await promisify(fs.readFile)(localPath);
       await this.upload(remotePath, buff);
-
-      await this._client.request({
-        path: "POST /containers/" + this.name + "/files?path=" + remotePath,
-        body: buff,
-      });
     } catch (err) {
       debug(`Error when uploading file at ${localPath} to container ${this.name} ` +
         `at remote path ${remotePath}:`, err);
