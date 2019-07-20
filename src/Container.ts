@@ -416,9 +416,17 @@ export class Container {
     // create operation
     try {
       debug(`Uploading file to container ${this.name} at remote path ${remotePath}`);
+
+      let body: string;
+      if (typeof data === "string") {
+        body = data;
+      } else {
+        body = data.toString();
+      }
+
       await this._client.request({
         path: "POST /containers/" + this.name + "/files?path=" + remotePath,
-        body: Buffer.isBuffer(data) ? data.toString("utf8") : data,
+        body,
       });
     } catch (err) {
       debug(`Error when uploading file to container ${this.name} at remote path ${remotePath}:`, err);
