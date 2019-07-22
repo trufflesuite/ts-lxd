@@ -36,7 +36,7 @@ export async function request<RequestBodyType, T>(
   };
 
   if (["PUT", "POST", "PATCH"].includes(method)) {
-    reqParams.body = JSON.stringify(options.body);
+    reqParams.body = typeof options.body === "string" ? options.body : JSON.stringify(options.body);
   }
 
   type BodyType = ISyncResponseBody<T> | IASyncResponseBody<T> | IErrorResponseBody | IOperationMetadata<T>;
