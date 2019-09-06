@@ -434,19 +434,28 @@ export class Container {
     }
   }
 
-  // TODO: fix this
   /*
    * Downloads data from a remote path on the container.
    * Container must be running.
    * @param remotePath
    */
-  /*public async download(remotePath: string): Promise<Buffer> {
+  public async download(remotePath: string): Promise<Buffer> {
+    try {
+      // read the file
+      const result = await this._client.request<void, Buffer>({
+        path: "GET_RAW /containers/" + this.name + "/files?path=" + remotePath,
+      });
 
-    // read the file
-    return this._client.request<void, void>({
-      path: "GET_RAW /containers/" + this.name + "/files?path=" + remotePath,
-    });
-  }*/
+      if (result instanceof Buffer) {
+        return result;
+      } else {
+        return result.metadata;
+      }
+    } catch (err) {
+      debug(`Error when downloading file at ${remotePath} to container ${this.name}:`, err);
+      throw err;
+    }
+  }
 
   /**
    * Uploads a file to a remote path on the container.

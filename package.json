@@ -1,6 +1,6 @@
 {
   "name": "ts-lxd",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A TypeScript client for LXD container virtualization, ported from node-lxd",
   "main": "dist/src/index.js",
   "keywords": [
