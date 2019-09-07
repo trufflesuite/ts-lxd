@@ -443,7 +443,7 @@ export class Container {
     try {
       // read the file
       const result = await this._client.request<void, Buffer>({
-        path: "GET_RAW /containers/" + this.name + "/files?path=" + remotePath,
+        path: "GET /containers/" + this.name + "/files?path=" + remotePath,
       });
 
       if (result instanceof Buffer) {
