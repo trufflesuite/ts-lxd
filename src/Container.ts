@@ -439,18 +439,14 @@ export class Container {
    * Container must be running.
    * @param remotePath
    */
-  public async download(remotePath: string): Promise<Buffer> {
+  public async download(remotePath: string): Promise<any> {
     try {
       // read the file
-      const result = await this._client.request<void, Buffer>({
+      const result = await this._client.request<void, any>({
         path: "GET /containers/" + this.name + "/files?path=" + remotePath,
       });
 
-      if (result instanceof Buffer) {
-        return result;
-      } else {
-        return result.metadata;
-      }
+      return result;
     } catch (err) {
       debug(`Error when downloading file at ${remotePath} to container ${this.name}:`, err);
       throw err;
