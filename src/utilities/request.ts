@@ -39,7 +39,8 @@ export async function request<RequestBodyType, T>(
     reqParams.body = typeof options.body === "string" ? options.body : JSON.stringify(options.body);
   }
 
-  type BodyType = ISyncResponseBody<T> | IASyncResponseBody<T> | IErrorResponseBody | IOperationMetadata<T>;
+  type BodyType =
+    ISyncResponseBody<T> | IASyncResponseBody<T> | IErrorResponseBody | IOperationMetadata<T> | T;
 
   if (typeof (options.body) === "object" && !Buffer.isBuffer(options.body)) {
     debug(`${method} ${url}: `, JSON.stringify(options.body, null, 2));
@@ -70,14 +71,28 @@ export async function request<RequestBodyType, T>(
         debug(body);
         throw new Error("unknown operation type: " + (body as any).type);
     }
-  } else {
+  } else if (isOperationMetadata(body)) {
     return body.metadata;
+  } else {
+    return body;
   }
 }
 
 function isResponseBody<T>(arg: any):
   arg is (ISyncResponseBody<T> | IASyncResponseBody<T> | IErrorResponseBody) {
   return !!arg.type;
+}
+
+function isOperationMetadata<T>(arg: any):
+  arg is (IOperationMetadata<T>) {
+  return !!arg.id &&
+    !!arg.class &&
+    !!arg.created_at &&
+    !!arg.updated_at &&
+    !!arg.status &&
+    !!arg.status_code &&
+    !!arg.metadata &&
+    !!arg.may_cancel;
 }
 
 function logRequestError(method: string, url: string, err: any): void {
