@@ -273,7 +273,7 @@ export class Client {
         profiles: [profile],
         ephemeral: false,
         config,
-        source: {
+        source: typeof image === !== 'string' ? image : {
           type: "image",
           alias: image,
         },
