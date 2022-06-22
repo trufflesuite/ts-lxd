@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "debug": "^4.1.1",
-    "got": "^9.6.0",
+    "got": "^11.8.5",
     "websocket-stream": "^5.3.0",
     "ws": "^7.4.6"
   },
